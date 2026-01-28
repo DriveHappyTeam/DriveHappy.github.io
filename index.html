@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Drive Happy</title>
+  <style>
+    canvas {
+      background: #333;
+      display: block;
+      margin: auto;
+      border: 3px solid #0f0;
+    }
+    #score {
+      text-align: center;
+      font-family: monospace;
+      font-size: 20px;
+      color: #0f0;
+    }
+    #menu {
+      text-align: center;
+      margin: 20px;
+    }
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #winMessage {
+      text-align: center;
+      font-family: monospace;
+      font-size: 28px;
+      color: #ff0;
+      margin-top: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h2>Selecciona dificultad</h2>
+    <button onclick="startGame('easy')">Fácil</button>
+    <button onclick="startGame('medium')">Medio</button>
+    <button onclick="startGame('hard')">Difícil</button>
+    <button onclick="startGame('brutal')">Brutal</button>
+    <button onclick="startGame('sinpiedad')">Sin Piedad 🏎️🔥</button>
+  </div>
+  <div id="score">Puntos: 0</div>
+  <div id="winMessage">🎉🔥🚗💨🏆✨ YA ME CANSE BRO, TU GANAS 💪😂🎮</div>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let score = 0;
+    let obstacles = [];
+    let obstacleTimer = 0;
+    let closeCallActive = false;
+    let gameRunning = false;
+
+    // Puntaje máximo definitivo
+    const MAX_SCORE = 999999999;
+
+    // Configuración de dificultad
+    let settings = {
+      carSpeed: 5,
+      obstacleSpeed: 3,
+      hitboxMargin: 10,
+      allowCloseCall: true,
+      carType: "normal"
+    };
+
+    // Carro del jugador
+    let car = { x: 180, y: 500, width: 40, height: 80, speed: 5 };
+
+    // Carriles
+    const lanes = [80, 160, 240];
+
+    function createObstacle() {
+      let safeLanes = lanes.filter(l => Math.abs(l - car.x) > 40);
+      let lane = safeLanes[Math.floor(Math.random() * safeLanes.length)];
+      obstacles.push({
+        x: lane,
+        y: -100,
+        width: 40,
+        height: 80,
+        speed: settings.obstacleSpeed
+      });
+    }
+
+    // Input
+    let keys = {};
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
+
+    function drawCar(c, color) {
+      if (settings.carType === "formula1") {
+        // Dibujar un F1 simplificado
+        ctx.fillStyle = color;
+        ctx.fillRect(c.x, c.y, c.width, c.height); // cuerpo principal
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(c.x - 10, c.y + 20, 10, 40); // rueda izquierda
+        ctx.fillRect(c.x + c.width, c.y + 20, 10, 40); // rueda derecha
+        ctx.fillStyle = "#ff0";
+        ctx.fillRect(c.x + 10, c.y - 10, 20, 10); // alerón delantero
+        ctx.fillRect(c.x + 10, c.y + c.height, 20, 10); // alerón trasero
+      } else {
+        ctx.fillStyle = color;
+        ctx.fillRect(c.x, c.y, c.width, c.height);
+      }
+    }
+
+    function updateCar() {
+      if (keys["ArrowLeft"] && car.x > 40) car.x -= car.speed;
+      if (keys["ArrowRight"] && car.x < canvas.width - car.width - 40) car.x += car.speed;
+    }
+
+    function updateObstacles() {
+      obstacles.forEach(o => {
+        o.y += o.speed;
+
+        let bigCollision =
+          car.x < o.x + o.width &&
+          car.x + car.width > o.x &&
+          car.y < o.y + o.height &&
+          car.y + car.height > o.y;
+
+        let margin = settings.hitboxMargin;
+        let smallCollision =
+          car.x + margin < o.x + o.width - margin &&
+          car.x + car.width - margin > o.x + margin &&
+          car.y + margin < o.y + o.height - margin &&
+          car.y + car.height - margin > o.y + margin;
+
+        if (smallCollision) {
+          alert("¡Choque! Puntuación: " + score);
+          resetGame();
+        } else if (bigCollision && settings.allowCloseCall) {
+          if (!closeCallActive) {
+            closeCallActive = true;
+            document.getElementById("score").innerText = "Close Call!";
+            setTimeout(() => {
+              closeCallActive = false;
+              document.getElementById("score").innerText = "Puntos: " + score;
+            }, 1000);
+          }
+        }
+      });
+
+      obstacles = obstacles.filter(o => o.y < canvas.height);
+    }
+
+    function drawRoad() {
+      ctx.fillStyle = "#555";
+      ctx.fillRect(40, 0, 320, canvas.height);
+
+      ctx.fillStyle = "#fff";
+      for (let i = 0; i < canvas.height; i += 40) {
+        ctx.fillRect(195, i, 10, 20);
+      }
+    }
+
+    function resetGame() {
+      car = { x: 180, y: 500, width: 40, height: 80, speed: settings.carSpeed };
+      obstacles = [];
+      score = 0;
+      obstacleTimer = 0;
+      closeCallActive = false;
+      document.getElementById("score").innerText = "Puntos: " + score;
+      document.getElementById("winMessage").style.display = "none";
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      // Condición de victoria SOLO para modos con max score
+      if (score >= MAX_SCORE && settings.carType !== "formula1") {
+        gameRunning = false;
+        document.getElementById("winMessage").style.display = "block";
+        document.getElementById("menu").style.display = "block"; 
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawRoad();
+      drawCar(car, "#0ff");
+      obstacles.forEach(o => drawCar(o, "#f00"));
+      updateCar();
+      updateObstacles();
+
+      score++;
+      if (!closeCallActive) {
+        document.getElementById("score").innerText = "Puntos: " + score;
+      }
+
+      obstacleTimer++;
+      if (obstacleTimer > 150) {
+        createObstacle();
+        obstacleTimer = 0;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function startGame(mode) {
+      if (mode === "easy") {
+        settings = { carSpeed: 5, obstacleSpeed: 3, hitboxMargin: 10, allowCloseCall: true, carType: "normal" };
+      } else if (mode === "medium") {
+        settings = { carSpeed: 5, obstacleSpeed: 5, hitboxMargin: 10, allowCloseCall: true, carType: "normal" };
+      } else if (mode === "hard") {
+        settings = { carSpeed: 5, obstacleSpeed: 6, hitboxMargin: 0, allowCloseCall: true, carType: "normal" };
+      } else if (mode === "brutal") {
+        settings = { carSpeed: 7, obstacleSpeed: 8, hitboxMargin: -10, allowCloseCall: false, carType: "normal" };
+      } else if (mode === "sinpiedad") {
+        settings = { carSpeed: 7, obstacleSpeed: 25, hitboxMargin: -20, allowCloseCall: false, carType: "formula1" };
+      }
+
+      resetGame();
+      document.getElementById("menu").style.display = "none";
+      gameRunning = true;
+      gameLoop();
+    }
+  </script>
+</body>
+</html>
